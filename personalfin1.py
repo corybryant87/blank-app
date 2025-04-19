@@ -1,8 +1,14 @@
 import streamlit as st  
 import pandas as pd  
 import numpy as np  
-import plotly.express as px  
+import matplotlib.pyplot as plt  
 import numpy_financial as npf  
+  
+# Try setting a seaborn style, if available  
+try:  
+    plt.style.use('seaborn-v0_8-whitegrid')  
+except Exception as e:  
+    print("Seaborn style not available, using default style.")  
   
 # ------------- Helper Functions -------------------  
 def fmt_dollar(x):  
@@ -97,73 +103,71 @@ debt_aggressiveness = st.sidebar.selectbox(
     ['Conservative', 'Moderate', 'Aggressive']  
 )  
   
-# ------------- Budget Calculations -------------------  
-st.title('Personal Budget & Debt Payoff Analysis')  
+# ------------- Budget Allocation -------------------  
+housing = 0.30 * monthly_income  
+essentials = 0.40 * monthly_income  
+savings = 0.15 * monthly_income  
   
-# Budget allocations  
-housing = monthly_income * 0.30  
-essentials = monthly_income * 0.40  
-savings = monthly_income * 0.15  
-  
-# Determine debt payment based on plan  
+# Determine Debt Payment based on the aggressiveness option  
 if debt_aggressiveness == 'Conservative':  
     debt_payment = min_monthly_payment  
 elif debt_aggressiveness == 'Moderate':  
-    debt_payment = min_monthly_payment * 1.5  
-else:  # Aggressive  
-    debt_payment = min_monthly_payment * 2.0  
+    debt_payment = 1.5 * min_monthly_payment  
+elif debt_aggressiveness == 'Aggressive':  
+    debt_payment = 2 * min_monthly_payment  
+else:  
+    debt_payment = min_monthly_payment  
   
-# Calculate discretionary  
-discretionary = monthly_income - (housing + essentials + savings + debt_payment)  
+allocated = housing + essentials + savings + debt_payment  
+discretionary = monthly_income - allocated  
   
-# Display budget breakdown  
-st.header('Monthly Budget Breakdown')  
+st.header('Monthly Budget Allocation')  
 budget_data = {  
-    'Category': ['Housing', 'Essentials', 'Savings', 'Debt Payment', 'Discretionary'],  
+    'Category': ['Housing', 'Essentials', 'Savings', 'Debt', 'Discretionary'],  
     'Amount': [housing, essentials, savings, debt_payment, discretionary]  
 }  
 budget_df = pd.DataFrame(budget_data)  
 budget_df['Amount'] = budget_df['Amount'].apply(fmt_dollar)  
 st.table(budget_df)  
   
-# Budget pie chart  
-fig_budget = px.pie(budget_df, values=[housing, essentials, savings, debt_payment, discretionary],  
-                    names=['Housing', 'Essentials', 'Savings', 'Debt Payment', 'Discretionary'],  
-                    title='Monthly Budget Allocation')  
-st.plotly_chart(fig_budget)  
+# Pie Chart for Budget Allocation  
+fig1, ax1 = plt.subplots(figsize=(6, 6))  
+ax1.pie([housing, essentials, savings, debt_payment, discretionary], labels=['Housing', 'Essentials', 'Savings', 'Debt', 'Discretionary'], autopct='%1.0f%%')  
+ax1.set_title('Budget Allocation')  
+st.pyplot(fig1)  
+plt.close(fig1)  
   
-# ------------- Debt Analysis -------------------  
+# ------------- Debt Payoff -------------------  
 st.header('Debt Payoff Analysis')  
   
-# Display debt payment plans  
-payment_plans = {  
+# Create table for debt plans  
+debt_plans = pd.DataFrame({  
     'Plan': ['Conservative', 'Moderate', 'Aggressive'],  
-    'Minimum Payment': [min_monthly_payment] * 3,  
-    'Recommended Payment': [  
-        min_monthly_payment,  
-        min_monthly_payment * 1.5,  
-        min_monthly_payment * 2.0  
-    ],  
-    'Maximum Payment': [min_monthly_payment * 2.0] * 3  
-}  
-plans_df = pd.DataFrame(payment_plans)  
-for col in ['Minimum Payment', 'Recommended Payment', 'Maximum Payment']:  
-    plans_df[col] = plans_df[col].apply(fmt_dollar)  
-st.table(plans_df)  
+    'Minimum Payment': [fmt_dollar(min_monthly_payment)] * 3,  
+    'Recommended Payment': [fmt_dollar(min_monthly_payment),  
+                            fmt_dollar(1.5 * min_monthly_payment),  
+                            fmt_dollar(2 * min_monthly_payment)],  
+    'Maximum Payment': [fmt_dollar(2 * min_monthly_payment)] * 3  
+})  
+st.table(debt_plans)  
   
-# Calculate and display amortization  
+# Calculate amortization using the chosen debt payment  
 amort_df, months_to_payoff, total_interest = compute_amortization(  
     total_debt, debt_interest_rate, debt_payment  
 )  
   
-st.write(f'Months to pay off debt: {months_to_payoff}')  
-st.write(f'Total interest paid: {fmt_dollar(total_interest)}')  
+st.write("Months to Payoff: " + str(months_to_payoff))  
+st.write("Total Interest Paid: " + fmt_dollar(total_interest))  
   
 # Debt payoff chart  
-fig_debt = px.line(amort_df, x='Month', y='Remaining Balance',  
-                   title='Debt Payoff Schedule')  
-fig_debt.update_layout(yaxis_tickprefix='$', yaxis_tickformat=',.0f')  
-st.plotly_chart(fig_debt)  
+fig2, ax2 = plt.subplots(figsize=(10, 6))  
+ax2.plot(amort_df['Month'], amort_df['Remaining Balance'])  
+ax2.set_title('Debt Payoff Schedule')  
+ax2.set_xlabel('Month')  
+ax2.set_ylabel('Remaining Balance ($)')  
+ax2.grid(True)  
+st.pyplot(fig2)  
+plt.close(fig2)  
   
 # ------------- Retirement Analysis -------------------  
 st.header('Retirement Analysis')  
@@ -173,16 +177,17 @@ monthly_rate = (1 + annual_return/100)**(1/12) - 1
 months_to_retirement = (desired_retirement_age - current_age) * 12  
   
 # Future Value calculation  
-future_value = (retirement_savings * (1 + monthly_rate)**months_to_retirement +   
-               savings * ((1 + monthly_rate)**months_to_retirement - 1) / monthly_rate)  
+# Future Value = S0*(1+r)^n + c*((1+r)^n - 1)/r  
+future_value = (retirement_savings * (1 + monthly_rate)**months_to_retirement +  
+                savings * ((1 + monthly_rate)**months_to_retirement - 1) / monthly_rate)  
   
 # Annual withdrawal (4% rule)  
 annual_withdrawal = future_value * 0.04  
   
-st.write(f'Projected Retirement Savings: {fmt_dollar(future_value)}')  
-st.write(f'Estimated Annual Withdrawal (4% Rule): {fmt_dollar(annual_withdrawal)}')  
+st.write('Projected Retirement Savings: ' + fmt_dollar(future_value))  
+st.write('Estimated Annual Withdrawal (4% Rule): ' + fmt_dollar(annual_withdrawal))  
   
-# Create retirement projection dataframe  
+# Create retirement projection dataframe (annual)  
 years = range(current_age, desired_retirement_age + 1)  
 projection = []  
 current_savings = retirement_savings  
@@ -196,16 +201,20 @@ for year in years:
 projection_df = pd.DataFrame(projection)  
   
 # Retirement projection chart  
-fig_retirement = px.line(projection_df, x='Age', y='Balance',  
-                        title='Retirement Savings Projection')  
-fig_retirement.update_layout(yaxis_tickprefix='$', yaxis_tickformat=',.0f')  
-st.plotly_chart(fig_retirement)  
+fig3, ax3 = plt.subplots(figsize=(10, 6))  
+ax3.plot(projection_df['Age'], projection_df['Balance'])  
+ax3.set_title('Retirement Savings Projection')  
+ax3.set_xlabel('Age')  
+ax3.set_ylabel('Balance ($)')  
+ax3.grid(True)  
+st.pyplot(fig3)  
+plt.close(fig3)  
   
 # ------------- Resources -------------------  
-st.header('Next Steps')  
+st.header('Next Steps & Resources')  
 st.markdown("""  
-- Review and adjust your budget allocations  
-- Consider increasing your debt payments if possible  
-- Consult with a financial advisor about retirement planning  
-- Visit [Investopedia](https://www.investopedia.com/) for more financial education  
+- Review and adjust your budget allocations.  
+- Consider increasing your debt payments if possible.  
+- Consult with a financial advisor about retirement planning.  
+- Visit [Investopedia](https://www.investopedia.com/) for more financial education.  
 """)  
