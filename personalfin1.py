@@ -76,6 +76,18 @@ monthly_retirement_savings = st.sidebar.number_input(
     format="%d"  
 )  
   
+# New input for annual retirement savings increase  
+retirement_increase = st.sidebar.number_input(  
+    'Annual Retirement Contribution Increase (%)',  
+    min_value=0.0,  
+    max_value=20.0,  # Setting a reasonable maximum  
+    value=3.0,  
+    step=0.5,  
+    help="Your monthly contribution will increase by this percentage each year"  
+)  
+# Calculate the monthly increase rate  
+monthly_increase_rate = retirement_increase / 200  # Halved percentage for calculations  
+  
 annual_return = st.sidebar.number_input(  
     'Expected Annual Return (%)',  
     min_value=0.0,  
@@ -104,20 +116,17 @@ st.header('Budget Allocations')
 housing_allocation = 0.30 * monthly_income  
 essentials_allocation = 0.40 * monthly_income  
 savings = monthly_retirement_savings  
-debt_payment = min_monthly_payment  
-discretionary = monthly_income - (housing_allocation + essentials_allocation + savings + debt_payment)  
+discretionary = monthly_income - (housing_allocation + essentials_allocation + savings + min_monthly_payment)  
   
 # Create budget dataframe  
 budget_data = {  
-    'Category': ['Housing (30%)', 'Essentials (40%)', 'Savings',   
+    'Category': ['Housing (30%)', 'Essentials (40%)', 'Retirement Savings',   
                 'Debt Payment', 'Discretionary'],  
     'Amount': [housing_allocation, essentials_allocation, savings,   
-              debt_payment, discretionary]  
+              min_monthly_payment, discretionary]  
 }  
   
 budget_df = pd.DataFrame(budget_data)  
-  
-# Display table  
 st.table(budget_df.style.format({'Amount': lambda x: fmt_dollar(x)}))  
   
 # Create pie chart with dollar values  
@@ -133,120 +142,106 @@ st.plotly_chart(fig_budget)
 # ------------- Debt Payoff -------------------  
 st.header('Debt Payoff Analysis')  
   
-# Calculate payments for each scenario  
-current_payment = min_monthly_payment  
-payment_50_more = current_payment * 1.5  
-payment_100_more = current_payment * 2  
-payment_200_more = current_payment * 3  
+# Calculate different payment scenarios  
+payment_scenarios = {  
+    'Current Payment': min_monthly_payment,  
+    '+50% Payment': min_monthly_payment * 1.5,  
+    '+100% Payment': min_monthly_payment * 2,  
+    '+200% Payment': min_monthly_payment * 3  
+}  
   
 # Compute amortization for each scenario  
-amort_current, months_current, total_int_current = compute_amortization(total_debt, debt_interest_rate, current_payment)  
-amort_50, months_50, total_int_50 = compute_amortization(total_debt, debt_interest_rate, payment_50_more)  
-amort_100, months_100, total_int_100 = compute_amortization(total_debt, debt_interest_rate, payment_100_more)  
-amort_200, months_200, total_int_200 = compute_amortization(total_debt, debt_interest_rate, payment_200_more)  
+debt_plans = []  
+for scenario, payment in payment_scenarios.items():  
+    amort_df, months, total_interest = compute_amortization(total_debt, debt_interest_rate, payment)  
+    debt_plans.append({  
+        'Plan': scenario,  
+        'Monthly Payment': payment,  
+        'Months to Payoff': months,  
+        'Total Interest Paid': total_interest  
+    })  
   
-# Create debt plans summary  
-debt_plans = pd.DataFrame({  
-    'Plan': ['Current Payment', '+50% Payment', '+100% Payment', '+200% Payment'],  
-    'Monthly Payment': [current_payment, payment_50_more, payment_100_more, payment_200_more],  
-    'Months to Payoff': [months_current, months_50, months_100, months_200],  
-    'Total Interest Paid': [total_int_current, total_int_50, total_int_100, total_int_200]  
-})  
-  
-st.table(debt_plans.style.format({  
+debt_plans_df = pd.DataFrame(debt_plans)  
+st.table(debt_plans_df.style.format({  
     'Monthly Payment': lambda x: fmt_dollar(x),  
     'Total Interest Paid': lambda x: fmt_dollar(x)  
 }))  
-  
-# Display amortization chart for all scenarios  
-all_amort = pd.DataFrame()  
-for scenario, df in [('Current Payment', amort_current),   
-                    ('+50% Payment', amort_50),  
-                    ('+100% Payment', amort_100),  
-                    ('+200% Payment', amort_200)]:  
-    df['Scenario'] = scenario  
-    all_amort = pd.concat([all_amort, df])  
-  
-fig_debt = px.line(all_amort,   
-                   x='Month',   
-                   y='Remaining Balance',  
-                   color='Scenario',  
-                   title='Debt Payoff Schedule - All Scenarios')  
-fig_debt.update_layout(yaxis_tickprefix='$', yaxis_tickformat=',d')  
-st.plotly_chart(fig_debt)  
   
 # ------------- Retirement Analysis -------------------  
 st.header('Retirement Analysis')  
   
 # Calculate rates and periods  
 monthly_rate = (1 + annual_return/100)**(1/12) - 1  
-months_to_retirement = (desired_retirement_age - current_age) * 12  
+years_to_retirement = desired_retirement_age - current_age  
   
-# Base scenario calculations  
-future_value_base = monthly_retirement_savings * ((1 + monthly_rate)**months_to_retirement - 1) / monthly_rate  
-annual_withdrawal_base = future_value_base * 0.04  
-  
-st.write('**Base Scenario**')  
-st.write('Projected Retirement Savings: ' + fmt_dollar(future_value_base))  
-st.write('Estimated Annual Withdrawal (4% Rule): ' + fmt_dollar(annual_withdrawal_base))  
-  
-# Create base projection  
-years = range(current_age, desired_retirement_age + 1)  
+# Base scenario calculations with increasing contributions  
 projection_base = []  
-current_savings_base = 0  # Start from 0  
-for year in years:  
+current_savings = 0  
+current_monthly_savings = monthly_retirement_savings  
+  
+for year in range(years_to_retirement + 1):  
     projection_base.append({  
-        'Age': year,  
-        'Balance': current_savings_base,  
+        'Age': current_age + year,  
+        'Balance': current_savings,  
+        'Monthly Contribution': current_monthly_savings,  
         'Scenario': 'Base'  
     })  
-    current_savings_base = current_savings_base * (1 + annual_return/100) + (monthly_retirement_savings * 12)  
+    # Update for next year  
+    current_savings = current_savings * (1 + annual_return/100) + (current_monthly_savings * 12)  
+    current_monthly_savings = current_monthly_savings * (1 + retirement_increase/100)  
   
-# +10% contribution scenario  
-savings_10 = monthly_retirement_savings * 1.1  
-projection_10 = []  
-current_savings_10 = 0  # Start from 0  
-future_value_10 = savings_10 * ((1 + monthly_rate)**months_to_retirement - 1) / monthly_rate  
+# Calculate final values for display  
+final_monthly_contribution = monthly_retirement_savings * (1 + retirement_increase/100)**years_to_retirement  
+future_value_base = projection_base[-1]['Balance']  
   
-for year in years:  
-    projection_10.append({  
-        'Age': year,  
-        'Balance': current_savings_10,  
-        'Scenario': '+10% Contribution'  
-    })  
-    current_savings_10 = current_savings_10 * (1 + annual_return/100) + (savings_10 * 12)  
+st.write('**Base Scenario**')  
+st.write('Initial Monthly Contribution: ' + fmt_dollar(monthly_retirement_savings))  
+st.write('Final Monthly Contribution: ' + fmt_dollar(final_monthly_contribution))  
+st.write('Projected Retirement Savings: ' + fmt_dollar(future_value_base))  
+st.write('Estimated Annual Withdrawal (4% Rule): ' + fmt_dollar(future_value_base * 0.04))  
   
-st.write('\n**+10% Contribution Scenario**')  
-st.write('Projected Retirement Savings: ' + fmt_dollar(future_value_10))  
-st.write('Estimated Annual Withdrawal (4% Rule): ' + fmt_dollar(future_value_10 * 0.04))  
+# +10% and +20% scenarios with same annual increase  
+scenarios = {  
+    '+10% Contribution': 1.1,  
+    '+20% Contribution': 1.2  
+}  
   
-# +20% contribution scenario  
-savings_20 = monthly_retirement_savings * 1.2  
-projection_20 = []  
-current_savings_20 = 0  # Start from 0  
-future_value_20 = savings_20 * ((1 + monthly_rate)**months_to_retirement - 1) / monthly_rate  
+all_projections = projection_base.copy()  
   
-for year in years:  
-    projection_20.append({  
-        'Age': year,  
-        'Balance': current_savings_20,  
-        'Scenario': '+20% Contribution'  
-    })  
-    current_savings_20 = current_savings_20 * (1 + annual_return/100) + (savings_20 * 12)  
-  
-st.write('\n**+20% Contribution Scenario**')  
-st.write('Projected Retirement Savings: ' + fmt_dollar(future_value_20))  
-st.write('Estimated Annual Withdrawal (4% Rule): ' + fmt_dollar(future_value_20 * 0.04))  
-  
-# Combine all scenarios into one dataframe for plotting  
-all_projections = pd.DataFrame(projection_base + projection_10 + projection_20)  
+for scenario_name, multiplier in scenarios.items():  
+    current_savings = 0  
+    current_monthly_savings = monthly_retirement_savings * multiplier  
+      
+    scenario_projections = []  
+    for year in range(years_to_retirement + 1):  
+        scenario_projections.append({  
+            'Age': current_age + year,  
+            'Balance': current_savings,  
+            'Monthly Contribution': current_monthly_savings,  
+            'Scenario': scenario_name  
+        })  
+        # Update for next year  
+        current_savings = current_savings * (1 + annual_return/100) + (current_monthly_savings * 12)  
+        current_monthly_savings = current_monthly_savings * (1 + retirement_increase/100)  
+      
+    final_value = scenario_projections[-1]['Balance']  
+    final_monthly = scenario_projections[-1]['Monthly Contribution']  
+      
+    st.write(f'\n**{scenario_name} Scenario**')  
+    st.write('Initial Monthly Contribution: ' + fmt_dollar(monthly_retirement_savings * multiplier))  
+    st.write('Final Monthly Contribution: ' + fmt_dollar(final_monthly))  
+    st.write('Projected Retirement Savings: ' + fmt_dollar(final_value))  
+    st.write('Estimated Annual Withdrawal (4% Rule): ' + fmt_dollar(final_value * 0.04))  
+      
+    all_projections.extend(scenario_projections)  
   
 # Create combined retirement projection plot  
-fig_retirement = px.line(all_projections,   
-                         x='Age',   
-                         y='Balance',  
-                         color='Scenario',  
-                         title='Retirement Savings Projections - All Scenarios')  
+projection_df = pd.DataFrame(all_projections)  
+fig_retirement = px.line(projection_df,   
+                        x='Age',   
+                        y='Balance',  
+                        color='Scenario',  
+                        title='Retirement Savings Projections - All Scenarios')  
 fig_retirement.update_layout(yaxis_tickprefix='$',   
                            yaxis_tickformat=',d',  
                            xaxis_title='Age',  
