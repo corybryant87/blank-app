@@ -72,7 +72,6 @@ desired_retirement_age = st.sidebar.number_input(
 # ------------- Budget Allocation -------------------
 st.header('Budget Allocations')
 
-# Adjustment knobs for recommended percentages
 st.subheader('Adjust Allocation Percentages')
 housing_pct = st.slider(
     'Housing (% of income)', min_value=0, max_value=50, value=30, step=1
@@ -82,7 +81,6 @@ essentials_pct = st.slider(
 )
 st.caption('Recommended: Housing 30%, Other Essentials 40%')
 
-# Compute allocations based on sliders
 housing_allocation = housing_pct / 100 * monthly_income
 essentials_allocation = essentials_pct / 100 * monthly_income
 savings = monthly_retirement_savings
@@ -90,7 +88,6 @@ discretionary = monthly_income - (
     housing_allocation + essentials_allocation + savings + min_monthly_payment
 )
 
-# Build and display budget table
 budget_df = pd.DataFrame({
     'Category': [
         f'Housing ({housing_pct}%)',
@@ -109,7 +106,6 @@ budget_df = pd.DataFrame({
 })
 st.table(budget_df.style.format({'Amount': lambda x: fmt_dollar(x)}))
 
-# Update pie chart with adjusted allocations
 fig_budget = go.Figure(data=[go.Pie(
     labels=budget_df['Category'],
     values=budget_df['Amount'],
@@ -206,11 +202,13 @@ fig_ret = px.line(
     color='Scenario',
     title='Retirement Savings Projections - All Scenarios'
 )
+# Reverse legend order so +50% appears at top and Base at bottom
 fig_ret.update_layout(
     yaxis_tickprefix='$',
     yaxis_tickformat=',d',
     xaxis_title='Age',
-    yaxis_title='Balance'
+    yaxis_title='Balance',
+    legend=dict(traceorder='reversed')
 )
 st.plotly_chart(fig_ret)
 
@@ -220,12 +218,12 @@ current_plan = debt_plans_df[debt_plans_df['Plan'] == 'Current Payment'].iloc[0]
 months_current = int(current_plan['Months to Payoff'])
 interest_current = current_plan['Total Interest Paid']
 st.markdown(f"""
-- **Debt Payoff**: At your current payment of ${fmt_dollar(min_monthly_payment)}, you’ll pay off ${fmt_dollar(total_debt)} in ~{months_current} months, paying {fmt_dollar(interest_current)} in interest. Consider increasing payments to the +50% scenario to cut years and interest.
+- **Debt Payoff**: At your current payment of {fmt_dollar(min_monthly_payment)}, you will pay off {fmt_dollar(total_debt)} in approximately {months_current} months, paying {fmt_dollar(interest_current)} in interest. Consider increasing payments to the +50% scenario to reduce time and interest.
 - **Budget Rebalance**: You have {fmt_dollar(discretionary)} discretionary each month. Allocate 10–20% of that to an emergency fund in a high-yield savings account.
-- **Retirement Automation**: Automate your monthly contributions and schedule an annual increase of {retirement_increase}% to stay on track without thinking about it.
+- **Retirement Automation**: Automate your monthly contributions and schedule an annual increase of {retirement_increase}% to stay on track automatically.
 - **Refinancing Check**: If your debt interest rate ({debt_interest_rate}%) is above market, explore refinancing or consolidation to lower your rate.
-- **Quarterly Review**: Set a calendar reminder to revisit your sliders and projections every quarter to adjust for changes in income or expenses.
-- **Tools & Resources**: Use budgeting apps like Mint or YNAB for real-time tracking, and visit [Investopedia](https://www.investopedia.com/) for deeper dives into refinancing and retirement strategies.
+- **Quarterly Review**: Set a calendar reminder to revisit your sliders and projections every quarter and adjust for changes.
+- **Tools & Resources**: Use budgeting apps like Mint or YNAB for real-time tracking, and visit [Investopedia](https://www.investopedia.com/) for deeper dives.
 """)
 
 print("App execution complete.")
