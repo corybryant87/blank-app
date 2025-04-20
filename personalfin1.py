@@ -226,7 +226,7 @@ st.markdown(f"""
 - **Tools & Resources**: Use budgeting apps like Mint or YNAB for real-time tracking, and visit [Investopedia](https://www.investopedia.com/) for deeper dives.
 
 
-App created by: Cory Bryant, Helena Qian, John Hurdt, Pasang Llamo, Varun Garg, and William Ostdiek
+App created by: Snory Bryant, Helena Qian, John Hurdt, Pasang Llamo, Varun Garg, and William Ostdiek
 """)
 
 print("App execution complete.")
