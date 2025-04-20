@@ -224,6 +224,15 @@ st.markdown(f"""
 - **Refinancing Check**: If your debt interest rate ({debt_interest_rate}%) is above market, explore refinancing or consolidation to lower your rate.
 - **Quarterly Review**: Set a calendar reminder to revisit your sliders and projections every quarter and adjust for changes.
 - **Tools & Resources**: Use budgeting apps like Mint or YNAB for real-time tracking, and visit [Investopedia](https://www.investopedia.com/) for deeper dives.
+
+
+***App created by:
+    -Cory Bryant
+    -Helena Qian
+    -John Hurdt
+    -Pasang Llamo
+    -Varun Garg
+    -William Ostdiek
 """)
 
 print("App execution complete.")
