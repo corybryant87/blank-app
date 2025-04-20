@@ -106,9 +106,12 @@ budget_df = pd.DataFrame({
 })
 st.table(budget_df.style.format({'Amount': lambda x: fmt_dollar(x)}))
 
+# Use a green color scheme for the pie chart
+green_colors = px.colors.sequential.Greens
 fig_budget = go.Figure(data=[go.Pie(
     labels=budget_df['Category'],
     values=budget_df['Amount'],
+    marker=dict(colors=green_colors),
     text=[fmt_dollar(v) for v in budget_df['Amount']],
     textinfo='label+text'
 )])
@@ -224,7 +227,6 @@ st.markdown(f"""
 - **Refinancing Check**: If your debt interest rate ({debt_interest_rate}%) is above market, explore refinancing or consolidation to lower your rate.
 - **Quarterly Review**: Set a calendar reminder to revisit your sliders and projections every quarter and adjust for changes.
 - **Tools & Resources**: Use budgeting apps like Mint or YNAB for real-time tracking, and visit [Investopedia](https://www.investopedia.com/) for deeper dives.
-
 
 App created by: Cory Bryant, Helena Qian, John Hurdt, Pasang Llamo, Varun Garg, and William Ostdiek
 """)
